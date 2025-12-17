@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chunking Strategies for RAG</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b1120;
+      --bg-alt: #020617;
+      --card: #020617;
+      --border: #1e293b;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.15);
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --code-bg: #020617;
+      --pill: #0f172a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 45%, #000 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(to bottom right, rgba(56,189,248,0.08), rgba(15,23,42,0.95));
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(10px);
+    }
+    .nav {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #f9fafb, #38bdf8 40%, #0f172a 75%, #020617 100%);
+      box-shadow: 0 0 22px rgba(56,189,248,0.7);
+    }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #e5e7eb;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      transition: all 0.15s ease-out;
+    }
+    .nav-links a:hover {
+      border-color: rgba(148,163,184,0.4);
+      color: #f9fafb;
+      background: rgba(15,23,42,0.7);
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 22px 18px 40px;
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(230px, 1.3fr);
+      gap: 22px;
+    }
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    /* Hero */
+    .hero {
+      margin-bottom: 18px;
+      padding: 18px 18px 18px;
+      border-radius: 18px;
+      border: 1px solid rgba(148,163,184,0.3);
+      background:
+        radial-gradient(circle at 0 0, rgba(56,189,248,0.22), transparent 55%),
+        radial-gradient(circle at 100% 0, rgba(129,140,248,0.18), transparent 50%),
+        linear-gradient(to bottom right, rgba(15,23,42,0.98), rgba(2,6,23,0.98));
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr);
+      gap: 16px;
+      align-items: center;
+    }
+    @media (max-width: 800px) {
+      .hero {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.95);
+      border: 1px solid rgba(148,163,184,0.4);
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+    .hero-tag-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 10px rgba(34,197,94,0.9);
+    }
+    .hero-title {
+      font-size: 26px;
+      font-weight: 650;
+      margin: 10px 0 6px;
+      letter-spacing: -0.02em;
+      color: #f9fafb;
+    }
+    .hero-sub {
+      font-size: 13px;
+      color: var(--muted);
+      max-width: 430px;
+    }
+    .hero-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .pill {
+      font-size: 11px;
+      border-radius: 999px;
+      padding: 4px 9px;
+      border: 1px solid rgba(148,163,184,0.35);
+      background: rgba(15,23,42,0.92);
+      color: #d1d5db;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .pill span {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(56,189,248,0.8);
+    }
+    .hero-diagram {
+      border-radius: 14px;
+      border: 1px solid rgba(148,163,184,0.4);
+      background: radial-gradient(circle at top, rgba(15,23,42,0.9), rgba(15,23,42,1));
+      padding: 12px 12px 10px;
+      font-size: 11px;
+    }
+    .diagram-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      color: var(--muted);
+    }
+    .diagram-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 0.4fr 1.3fr;
+      gap: 8px;
+      align-items: center;
+    }
+    .diagram-box {
+      border-radius: 10px;
+      padding: 8px;
+      border: 1px solid rgba(148,163,184,0.45);
+      background: rgba(15,23,42,0.96);
+      min-height: 60px;
+    }
+    .diagram-box h4 {
+      font-size: 11px;
+      margin: 0 0 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #9ca3af;
+    }
+    .diagram-box p {
+      margin: 0;
+      font-size: 11px;
+      color: #e5e7eb;
+    }
+    .diagram-arrow {
+      text-align: center;
+      font-size: 18px;
+      color: rgba(148,163,184,0.9);
+    }
+    .diagram-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 6px;
+    }
+    .diagram-chip {
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.45);
+      font-size: 10px;
+      color: #d1d5db;
+      background: rgba(15,23,42,0.95);
+    }
+
+    /* Layout content */
+    .content-card {
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: rgba(15,23,42,0.98);
+      padding: 16px 16px 18px;
+      margin-bottom: 16px;
+    }
+    h2 {
+      font-size: 17px;
+      margin: 0 0 8px;
+      color: #e5e7eb;
+      letter-spacing: -0.01em;
+    }
+    h3 {
+      font-size: 14px;
+      margin: 14px 0 6px;
+      color: #e5e7eb;
+    }
+    p {
+      font-size: 13px;
+      margin: 4px 0 7px;
+      color: var(--muted);
+    }
+    ul, ol {
+      padding-left: 18px;
+      margin: 4px 0 8px;
+    }
+    li {
+      font-size: 13px;
+      margin-bottom: 3px;
+      color: #d1d5db;
+    }
+
+    .note {
+      border-radius: 10px;
+      padding: 8px 9px;
+      background: rgba(15,23,42,0.95);
+      border: 1px dashed rgba(148,163,184,0.7);
+      font-size: 12px;
+      color: #e5e7eb;
+      margin-top: 6px;
+    }
+    .highlight {
+      color: #e5e7eb;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      background: var(--code-bg);
+      border-radius: 5px;
+      padding: 2px 4px;
+      border: 1px solid rgba(30,64,175,0.6);
+      color: #e5e7eb;
+    }
+    pre {
+      margin: 8px 0;
+      padding: 8px 10px;
+      background: var(--code-bg);
+      border-radius: 10px;
+      overflow-x: auto;
+      border: 1px solid rgba(30,64,175,0.6);
+      font-size: 12px;
+    }
+
+    .chunk-example {
+      background: rgba(15,23,42,0.96);
+      border-radius: 10px;
+      border: 1px solid rgba(55,65,81,0.9);
+      padding: 8px 10px;
+      margin: 7px 0;
+    }
+    .chunk-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #93c5fd;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .chunk-text {
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .tag {
+      font-size: 10px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: rgba(8,47,73,0.9);
+      border: 1px solid rgba(56,189,248,0.4);
+      color: #e0f2fe;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+
+    /* Sidebar */
+    .sidebar-card {
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: rgba(15,23,42,0.98);
+      padding: 14px 14px 16px;
+      margin-bottom: 14px;
+      font-size: 12px;
+    }
+    .toc-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #9ca3af;
+      margin: 0 0 4px;
+    }
+    .toc-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 4px 0 0;
+    }
+    .toc-list li {
+      margin-bottom: 4px;
+    }
+    .toc-list a {
+      text-decoration: none;
+      color: #d1d5db;
+      font-size: 12px;
+      padding: 2px 0;
+      display: inline-block;
+    }
+    .toc-list a:hover {
+      color: #38bdf8;
+    }
+    .metric-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .metric-pill {
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: var(--pill);
+      border: 1px solid rgba(148,163,184,0.5);
+      font-size: 11px;
+      color: #e5e7eb;
+    }
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 10px 18px 16px;
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      background: radial-gradient(circle at top, #020617, #000 55%);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <div class="nav-left">
+      <div class="logo-dot"></div>
+      <div class="brand-title">RAG Chunking Lab</div>
+    </div>
+    <nav class="nav-links">
+      <a href="#what-is-chunking">Basics</a>
+      <a href="#fixed-size">Fixed-size</a>
+      <a href="#sentence-aware">Sentence-aware</a>
+      <a href="#semantic">Semantic</a>
+      <a href="#html-chunking">HTML</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section aria-label="Main content">
+    <div class="hero">
+      <div>
+        <div class="hero-tag">
+          <span class="hero-tag-dot"></span>
+          <span>Retrieval-Augmented Generation</span>
+        </div>
+        <h1 class="hero-title">Chunking strategies that actually work</h1>
+        <p class="hero-sub">
+          Learn how to cut large documents into model-friendly chunks without losing context.
+          Every example here uses the same base paragraph so you can see how strategies differ. [web:28][web:23]
+        </p>
+        <div class="hero-pills">
+          <div class="pill"><span></span>Fixed-size</div>
+          <div class="pill"><span></span>Sentence-aware</div>
+          <div class="pill"><span></span>Recursive</div>
+          <div class="pill"><span></span>Semantic</div>
+          <div class="pill"><span></span>HTML-aware</div>
+        </div>
+      </div>
+      <div class="hero-diagram">
+        <div class="diagram-title">
+          <span>Document → Chunks → RAG</span>
+          <span style="font-size: 10px; color:#d1d5db;">Context vs Recall</span>
+        </div>
+        <div class="diagram-grid">
+          <div class="diagram-box">
+            <h4>Source document</h4>
+            <p>Long PDF, HTML page, or markdown that cannot fit into the LLM context window directly.</p>
+          </div>
+          <div class="diagram-arrow">➜</div>
+          <div class="diagram-box">
+            <h4>Chunks</h4>
+            <p>Small, coherent pieces used for embedding and retrieval.</p>
+            <div class="diagram-chip-row">
+              <div class="diagram-chip">512 tokens</div>
+              <div class="diagram-chip">Overlap: 64</div>
+              <div class="diagram-chip">Per-section</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Base text -->
+    <article id="what-is-chunking" class="content-card">
+      <h2>1. Base text used in all examples</h2>
+      <p class="highlight">
+        Every strategy below starts from the same short paragraph so you can compare the shapes of chunks directly. [web:28]
+      </p>
+      <div class="chunk-example">
+        <div class="chunk-label">Base paragraph (T0)</div>
+        <div class="chunk-text">
+          Large language models cannot read entire websites or long documents at once because they have a limited context window.
+          Retrieval-Augmented Generation, or RAG, solves this by storing document chunks as vectors and retrieving only
+          the most relevant ones for a given question. Good chunking strategies try to balance semantic coherence,
+          such as keeping related sentences together, with practical limits like maximum token size. If chunks are too small,
+          the model may lose context. If chunks are too large, important details might be truncated or ignored. [web:28][web:23]
+        </div>
+      </div>
+      <p>
+        Chunking means splitting this paragraph into several pieces while preserving enough meaning for useful retrieval and generation. [web:28]
+      </p>
+      <div class="tag-row">
+        <span class="tag">Context window</span>
+        <span class="tag">Retrieval</span>
+        <span class="tag">Granularity</span>
+      </div>
+    </article>
+
+    <!-- Fixed size -->
+    <article id="fixed-size" class="content-card">
+      <h2>2. Fixed-size chunking</h2>
+      <p>
+        Fixed-size chunking splits text by a constant number of tokens or characters, often with a configurable overlap. [web:14][web:18]
+        It is easy to implement but can break sentences and semantic units in the middle. [web:14]
+      </p>
+
+      <h3>Example A: 20-word chunks, no overlap</h3>
+      <p>
+        Assume the paragraph has around 95 words and you cut every 20 words regardless of sentence boundaries. [web:21]
+      </p>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk F1 (words 1–20)</div>
+        <div class="chunk-text">
+          Large language models cannot read entire websites or long documents at once because they have a limited
+          context window. Retrieval-Augmented Generation,
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk F2 (words 21–40)</div>
+        <div class="chunk-text">
+          or RAG, solves this by storing document chunks as vectors and retrieving only the most relevant ones for a
+          given question. Good chunking
+        </div>
+      </div>
+      <p class="note">
+        Notice how chunks cut mid-sentence. Some meaning is split across boundaries, which can hurt retrieval relevance. [web:14]
+      </p>
+
+      <h3>Example B: 30-word chunks, 10-word overlap</h3>
+      <p>
+        Overlap repeats the last few words of one chunk at the start of the next, improving continuity at the cost of more tokens. [web:26][web:18]
+      </p>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk F3 (words 1–30)</div>
+        <div class="chunk-text">
+          Large language models cannot read entire websites or long documents at once because they have a limited context
+          window. Retrieval-Augmented Generation, or RAG, solves this by storing document chunks as vectors and retrieving
+          only the most relevant ones
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk F4 (words 21–50)</div>
+        <div class="chunk-text">
+          for a given question. Good chunking strategies try to balance semantic coherence, such as keeping related sentences
+          together, with practical limits like maximum token size. If chunks are too small,
+        </div>
+      </div>
+    </article>
+
+    <!-- Sentence-aware -->
+    <article id="sentence-aware" class="content-card">
+      <h2>3. Sentence-aware / paragraph-based chunking</h2>
+      <p>
+        Sentence-aware methods respect natural language boundaries, grouping whole sentences or paragraphs until a size limit is reached. [web:30][web:21]
+        This tends to give more coherent chunks than raw fixed-size splits. [web:30]
+      </p>
+
+      <p class="highlight">
+        Split the base text into four sentences (S1–S4):
+      </p>
+      <ul>
+        <li><strong>S1</strong>: “Large language models cannot read entire websites or long documents at once because they have a limited context window.”</li>
+        <li><strong>S2</strong>: “Retrieval-Augmented Generation, or RAG, solves this by storing document chunks as vectors and retrieving only the most relevant ones for a given question.”</li>
+        <li><strong>S3</strong>: “Good chunking strategies try to balance semantic coherence, such as keeping related sentences together, with practical limits like maximum token size.”</li>
+        <li><strong>S4</strong>: “If chunks are too small, the model may lose context. If chunks are too large, important details might be truncated or ignored.”</li>
+      </ul>
+
+      <h3>Example A: Group by logical idea</h3>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk S1</div>
+        <div class="chunk-text">
+          S1 + S2 (problem and how RAG uses chunks).
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk S2</div>
+        <div class="chunk-text">
+          S3 + S4 (trade-offs of chunk size and consequences).
+        </div>
+      </div>
+
+      <h3>Example B: Apply a soft 60-word limit</h3>
+      <p>
+        If the combined length of S1 and S2 is near 60 words and S3 + S4 is shorter, you can split at that sentence boundary. [web:40]
+      </p>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk S3</div>
+        <div class="chunk-text">
+          S1 + S2 (introduction + definition of RAG, under the limit).
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk S4</div>
+        <div class="chunk-text">
+          S3 + S4 (strategies and “too small / too large” effects).
+        </div>
+      </div>
+    </article>
+
+    <!-- Recursive -->
+    <article id="recursive" class="content-card">
+      <h2>4. Recursive chunking</h2>
+      <p>
+        Recursive chunking uses a hierarchy of separators: first split by big structures (sections), then by paragraphs,
+        sentences, and finally fixed-size tokens if still too long. [web:21][web:45]
+      </p>
+
+      <h3>Example A: Paragraph → sentence → fixed-size</h3>
+      <ol>
+        <li>Level 1: T0 is one paragraph, so no split.</li>
+        <li>Level 2: Split into S1–S4 sentences.</li>
+        <li>Level 3: If S1+S2 is still above your token limit, break within S2 using a fixed-size splitter.</li>
+      </ol>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk R1</div>
+        <div class="chunk-text">
+          S1 + first half of S2.
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk R2</div>
+        <div class="chunk-text">
+          Second half of S2 + S3.
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk R3</div>
+        <div class="chunk-text">
+          S4.
+        </div>
+      </div>
+
+      <h3>Example B: Multi-paragraph variant</h3>
+      <p>
+        Imagine T0 was written as two paragraphs: P1 = S1–S2 and P2 = S3–S4. [web:21]
+      </p>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk R4</div>
+        <div class="chunk-text">
+          P1 (S1–S2) kept intact as one chunk.
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk R5</div>
+        <div class="chunk-text">
+          S3 (first sentence of P2), if token-heavy.
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk R6</div>
+        <div class="chunk-text">
+          S4 (remaining sentence of P2).
+        </div>
+      </div>
+      <p class="note">
+        Libraries such as LangChain’s <code>RecursiveCharacterTextSplitter</code> follow this idea for markdown,
+        HTML, and code. [web:45]
+      </p>
+    </article>
+
+    <!-- Semantic -->
+    <article id="semantic" class="content-card">
+      <h2>5. Semantic / embedding-based chunking</h2>
+      <p>
+        Semantic chunking uses embeddings to detect topic shifts and groups text where adjacent parts are highly similar. [web:18][web:31]
+        Breakpoints appear where cosine similarity falls below a threshold, signaling a new idea. [web:48][web:42]
+      </p>
+
+      <h3>Example A: Two-topic split</h3>
+      <p>
+        Suppose sentence embeddings give high similarity between S1–S2 and between S3–S4, but low similarity between S2 and S3. [web:31]
+      </p>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk M1</div>
+        <div class="chunk-text">
+          S1 + S2 (why chunking is needed and how RAG uses chunks).
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk M2</div>
+        <div class="chunk-text">
+          S3 + S4 (strategy trade-offs and too small / too large effects).
+        </div>
+      </div>
+
+      <h3>Example B: Finer-grained clusters</h3>
+      <p>
+        Another approach embeds each sentence and clusters them into small groups that share a topic. [web:34][web:39]
+      </p>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk M3 (Cluster A)</div>
+        <div class="chunk-text">
+          S1 (LLMs have limited context window).
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk M4 (Cluster B)</div>
+        <div class="chunk-text">
+          S2 + S3 + S4 (RAG mechanism and detailed chunk-size trade-offs strongly related in the embedding space).
+        </div>
+      </div>
+      <p class="note">
+        This preserves semantic coherence even if sentence order in the original document is noisy or mixed across topics. [web:31][web:48]
+      </p>
+    </article>
+
+    <!-- HTML / structure-aware -->
+    <article id="html-chunking" class="content-card">
+      <h2>6. Structure-aware / HTML chunking</h2>
+      <p>
+        Structure-aware strategies respect headings, sections, or tags like <code>&lt;h2&gt;</code> and <code>&lt;p&gt;</code>,
+        so chunks align with how content is organized visually and logically. [web:26][web:23]
+      </p>
+
+      <p class="highlight">The base text as HTML:</p>
+      <pre><code>&lt;h2&gt;Why chunking is needed&lt;/h2&gt;
+&lt;p&gt;Large language models cannot read entire websites ... context window.&lt;/p&gt;
+
+&lt;h2&gt;How RAG uses chunks&lt;/h2&gt;
+&lt;p&gt;Retrieval-Augmented Generation, or RAG, solves this ... question.&lt;/p&gt;
+
+&lt;h2&gt;Choosing good chunk sizes&lt;/h2&gt;
+&lt;p&gt;Good chunking strategies try to balance ... truncated or ignored.&lt;/p&gt;</code></pre>
+
+      <h3>Example A: One section per chunk</h3>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk H1</div>
+        <div class="chunk-text">
+          &lt;h2&gt;Why chunking is needed&lt;/h2&gt; + its &lt;p&gt; (covers S1).
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk H2</div>
+        <div class="chunk-text">
+          &lt;h2&gt;How RAG uses chunks&lt;/h2&gt; + its &lt;p&gt; (covers S2).
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk H3</div>
+        <div class="chunk-text">
+          &lt;h2&gt;Choosing good chunk sizes&lt;/h2&gt; + its &lt;p&gt; (covers S3–S4).
+        </div>
+      </div>
+
+      <h3>Example B: Merge short sections</h3>
+      <p>
+        If the “How RAG uses chunks” section is short, you can merge it with the previous or next section while still
+        using headings as anchors. [web:26]
+      </p>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk H4</div>
+        <div class="chunk-text">
+          &lt;h2&gt;Why chunking is needed&lt;/h2&gt; + its &lt;p&gt; +
+          &lt;h2&gt;How RAG uses chunks&lt;/h2&gt; + its &lt;p&gt; (S1–S2).
+        </div>
+      </div>
+      <div class="chunk-example">
+        <div class="chunk-label">Chunk H5</div>
+        <div class="chunk-text">
+          &lt;h2&gt;Choosing good chunk sizes&lt;/h2&gt; + its &lt;p&gt; (S3–S4).
+        </div>
+      </div>
+      <p class="note">
+        Frameworks like Weaviate, LlamaIndex, and Mastra provide HTML-aware splitters that do this automatically. [web:26][web:13][web:50]
+      </p>
+    </article>
+
+    <!-- When to use what -->
+    <article id="choosing-strategy" class="content-card">
+      <h2>7. Choosing a strategy in practice</h2>
+      <p>
+        The “best” chunking strategy depends on document type, query style, and latency constraints. [web:7][web:49]
+        Many production RAG systems start with fixed-size plus overlap and then layer sentence- or structure-awareness as needed. [web:26][web:23]
+      </p>
+      <div class="metric-row">
+        <div class="metric-pill">Short FAQ → Sentence-based</div>
+        <div class="metric-pill">Docs / HTML → Structure-aware</div>
+        <div class="metric-pill">Mixed content → Recursive</div>
+        <div class="metric-pill">Open-ended QA → Semantic</div>
+      </div>
+      <p class="note">
+        For experimentation, try 512-token chunks with 50–100 token overlap as a baseline, then A/B test alternative splitters against
+        retrieval quality metrics. [web:26][web:28]
+      </p>
+    </article>
+  </section>
+
+  <!-- Sidebar -->
+  <aside aria-label="Sidebar">
+    <div class="sidebar-card">
+      <div class="toc-title">On this page</div>
+      <ul class="toc-list">
+        <li><a href="#what-is-chunking">Base text</a></li>
+        <li><a href="#fixed-size">Fixed-size chunks</a></li>
+        <li><a href="#sentence-aware">Sentence-aware</a></li>
+        <li><a href="#recursive">Recursive methods</a></li>
+        <li><a href="#semantic">Semantic chunks</a></li>
+        <li><a href="#html-chunking">HTML &amp; structure</a></li>
+        <li><a href="#choosing-strategy">Choosing a strategy</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-card">
+      <div class="toc-title">Key ideas</div>
+      <ul style="margin-top:4px; padding-left:16px;">
+        <li>Chunks must fit the LLM context window and remain semantically meaningful. [web:28][web:18]</li>
+        <li>Overlap trades extra tokens for better context continuity. [web:14][web:26]</li>
+        <li>Structure-aware and semantic approaches usually outperform naive fixed-size on complex docs. [web:7][web:39]</li>
+      </ul>
+    </div>
+
+    <div class="sidebar-card">
+      <div class="toc-title">Suggested experiments</div>
+      <ol style="margin-top:6px; padding-left:16px;">
+        <li>Index the same corpus with fixed-size vs sentence-aware chunks and compare answer faithfulness. [web:39]</li>
+        <li>Turn on semantic or recursive chunking for long HTML documentation pages and measure retrieval precision. [web:23][web:26]</li>
+      </ol>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  Built as a learning aid for understanding document chunking in RAG systems. Inspired by public guides from Pinecone, Microsoft, and others. [web:28][web:23][web:7]
+</footer>
+
+</body>
+</html>
